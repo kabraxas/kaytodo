@@ -15,7 +15,6 @@ KST = timezone(timedelta(hours=9))
 def send_telegram(chat_id, message):
   try:
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    # 글자 수 제한(4096자) 초과 방지를 위해 4000자로 안전하게 자름
     if len(message) > 4000:
       message = message[:3997] + "..."
 
@@ -48,7 +47,6 @@ def get_tasks_summary(mode):
       status_code, text_resp = fetch_todoist_tasks_by_filter("today")
 
       if status_code != 200:
-        # 에러 응답이 너무 길 경우 앞부분만 추출
         return (
             f"[Todoist 연동 오류]\n상태 코드:"
             f" {status_code}\n내용:\n{text_resp[:500]}"
@@ -56,7 +54,8 @@ def get_tasks_summary(mode):
 
       tasks = json.loads(text_resp)
       if not isinstance(tasks, list):
-        return f"[Todoist 응답 오류]\n데이터 형태가 올바르지 않습니다."
+        # Todoist가 리스트 대신 반환한 원본 내용을 그대로 노출하여 원인 파악
+        return f"[Todoist 응답 오류]\n원본 데이터:\n{text_resp[:400]}"
 
       filtered_tasks = [task["content"] for task in tasks if "content" in task]
 
@@ -81,7 +80,7 @@ def get_tasks_summary(mode):
 
       tasks = json.loads(text_resp)
       if not isinstance(tasks, list):
-        return f"[Todoist 응답 오류]\n데이터 형태가 올바르지 않습니다."
+        return f"[Todoist 응답 오류]\n원본 데이터:\n{text_resp[:400]}"
 
       filtered_tasks = []
       for task in tasks:
