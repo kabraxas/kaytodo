@@ -15,8 +15,10 @@ KST = timezone(timedelta(hours=9))
 def send_telegram(chat_id, message):
   try:
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message, "parse_mode": "HTML"}
-    requests.post(url, json=payload, timeout=5)
+    # parse_mode를 제거하여 특수문자나 HTML 태그로 인한 전송 실패 방지
+    payload = {"chat_id": chat_id, "text": message}
+    response = requests.post(url, json=payload, timeout=5)
+    print(f"Telegram response: {response.text}")
   except Exception as e:
     print(f"Telegram send error: {e}")
 
@@ -43,22 +45,16 @@ def get_tasks_summary(mode):
       status_code, text_resp = fetch_todoist_tasks_by_filter("today")
 
       if status_code != 200:
-        return (
-            f"<b>[Todoist 연동 오류]</b>\n상태 코드:"
-            f" {status_code}\n내용:\n{text_resp}"
-        )
+        return f"[Todoist 연동 오류]\n상태 코드: {status_code}\n내용:\n{text_resp}"
 
       tasks = json.loads(text_resp)
       if not isinstance(tasks, list):
-        return (
-            f"<b>[Todoist 응답 오류]</b>\n예상치 못한 데이터 형태입니다:\n"
-            f"{text_resp}"
-        )
+        return f"[Todoist 응답 오류]\n예상치 못한 데이터 형태:\n{text_resp}"
 
       filtered_tasks = [task["content"] for task in tasks if "content" in task]
 
     else:
-      title_label = " 이번 주 할 일 (일요일 시작)"
+      title_label = "이번 주 할 일 (일요일 시작)"
       weekday_num = now_kst.weekday()
       days_since_sunday = (weekday_num + 1) % 7
       start_of_week = today_date - timedelta(days=days_since_sunday)
@@ -71,17 +67,11 @@ def get_tasks_summary(mode):
       status_code, text_resp = fetch_todoist_tasks_by_filter(filter_query)
 
       if status_code != 200:
-        return (
-            f"<b>[Todoist 연동 오류]</b>\n상태 코드:"
-            f" {status_code}\n내용:\n{text_resp}"
-        )
+        return f"[Todoist 연동 오류]\n상태 코드: {status_code}\n내용:\n{text_resp}"
 
       tasks = json.loads(text_resp)
       if not isinstance(tasks, list):
-        return (
-            f"<b>[Todoist 응답 오류]</b>\n예상치 못한 데이터 형태입니다:\n"
-            f"{text_resp}"
-        )
+        return f"[Todoist 응답 오류]\n예상치 못한 데이터 형태:\n{text_resp}"
 
       filtered_tasks = []
       for task in tasks:
@@ -97,26 +87,20 @@ def get_tasks_summary(mode):
             pass
 
     if not filtered_tasks:
-      return (
-          f"<b>[Todoist {title_label} ({today_str})]</b>\n\n조회된 할 일이"
-          f" 없습니다."
-      )
+      return f"[Todoist {title_label} ({today_str})]\n\n조회된 할 일이 없습니다."
     else:
-      message = f"<b>[Todoist {title_label} ({today_str})]</b>\n\n"
+      message = f"[Todoist {title_label} ({today_str})]\n\n"
       for idx, content in enumerate(filtered_tasks, 1):
         message += f"{idx}. {content}\n"
       return message
   except Exception as e:
-    return f"<b>[코드 내부 에러]</b>\n{str(e)}"
+    return f"[코드 내부 에러]\n{str(e)}"
 
 
 @app.route("/", methods=["POST"])
 def telegram_webhook():
   try:
     data = request.get_json(silent=True)
-    # 텔레그램에서 들어온 실제 데이터 전문을 Render 로그에 출력
-    print(f"Incoming Telegram Data: {data}")
-
     if not data:
       return "OK", 200
 
@@ -136,9 +120,7 @@ def telegram_webhook():
           send_telegram(chat_id, msg)
         elif command == "/debug":
           status_code, result = fetch_todoist_tasks_by_filter("today")
-          msg = (
-              f"<b>[디버그 결과]</b>\n상태 코드: {status_code}\n내용:\n{result}"
-          )
+          msg = f"[디버그 결과]\n상태 코드: {status_code}\n내용:\n{result}"
           send_telegram(chat_id, msg)
         elif command == "/start":
           send_telegram(chat_id, "Todoist 봇이 준비되었습니다.")
