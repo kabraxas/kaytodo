@@ -57,7 +57,6 @@ def get_tasks_summary(mode):
       except Exception:
         return f"[Todoist 응답 오류]\nJSON 파싱 실패:\n{text_resp[:400]}"
 
-      # 새로운 v1 API 구조에 맞게 "results" 키에서 리스트 추출
       if isinstance(data, dict):
         tasks = data.get("results", [])
       elif isinstance(data, list):
@@ -65,7 +64,17 @@ def get_tasks_summary(mode):
       else:
         return f"[Todoist 응답 오류]\n원본 데이터:\n{text_resp[:400]}"
 
-      filtered_tasks = [task["content"] for task in tasks if "content" in task]
+      # 마감일이 오늘 날짜와 정확히 일치하는 항목만 필터링
+      filtered_tasks = []
+      for task in tasks:
+        due = task.get("due")
+        if due and "date" in due:
+          try:
+            task_date = datetime.strptime(due["date"][:10], "%Y-%m-%d").date()
+            if task_date == today_date:
+              filtered_tasks.append(task.get("content", ""))
+          except Exception:
+            pass
 
     else:
       title_label = "이번 주 할 일 (일요일 시작)"
