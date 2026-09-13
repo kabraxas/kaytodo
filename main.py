@@ -17,10 +17,9 @@ def send_telegram(chat_id, message):
 
 
 def fetch_todoist_tasks_by_filter(filter_query):
-  """Todoist 필터 API를 사용하여 특정 조건(today 등)의 태스크를 가져옵니다."""
   url = "https://api.todoist.com/rest/v2/tasks"
   headers = {"Authorization": f"Bearer {TODOIST_TOKEN}"}
-  params = {"filter": filter_query}
+  params = {"filter": filter_query} if filter_query else {}
   response = requests.get(url, headers=headers, params=params)
   if response.status_code == 200:
     return response.status_code, response.json()
@@ -36,17 +35,15 @@ def get_tasks_summary(mode):
 
   if mode == "day":
     title_label = "오늘의 할 일"
-    # Todoist의 'today' 필터를 직접 사용 (반복 작업 및 오늘 할 일 자동 포함)
     status_code, tasks = fetch_todoist_tasks_by_filter("today")
 
     if status_code != 200:
-      return f"<b>[Todoist 연동 오류]</b>\nAPI 호출 실패 (상태 코드: {status_code})"
+      return f"<b>[Todoist 연동 오류]</b>\nAPI 호출 실패 (상태 코드: {status_code})\n내용: {tasks}"
 
     filtered_tasks = [task["content"] for task in tasks]
 
   else:
     title_label = "이번 주 할 일 (일요일 시작)"
-    # 일요일 시작 기준 주간 범위 계산 (일요일 ~ 토요일)
     weekday_num = now_kst.weekday()  # 월:0 ~ 일:6
     days_since_sunday = (weekday_num + 1) % 7
     start_of_week = today_date - timedelta(days=days_since_sunday)
@@ -55,12 +52,11 @@ def get_tasks_summary(mode):
     start_str = start_of_week.strftime("%Y-%m-%d")
     end_str = end_of_week.strftime("%Y-%m-%d")
 
-    # Todoist 날짜 범위 필터 사용 (예: 2026-09-13 | 2026-09-19)
     filter_query = f"{start_str} | {end_str}"
     status_code, tasks = fetch_todoist_tasks_by_filter(filter_query)
 
     if status_code != 200:
-      return f"<b>[Todoist 연동 오류]</b>\nAPI 호출 실패 (상태 코드: {status_code})"
+      return f"<b>[Todoist 연동 오류]</b>\nAPI 호출 실패 (상태 코드: {status_code})\n내용: {tasks}"
 
     filtered_tasks = []
     for task in tasks:
