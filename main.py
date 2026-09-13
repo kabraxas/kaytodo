@@ -1,13 +1,15 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import json
 import os
 from flask import Flask, request
-import pytz
 import requests
 
 app = Flask(__name__)
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TODOIST_TOKEN = os.environ.get("TODOIST_TOKEN")
+
+KST = timezone(timedelta(hours=9))
 
 
 def send_telegram(chat_id, message):
@@ -32,10 +34,7 @@ def fetch_todoist_tasks_by_filter(filter_query):
 
 def get_tasks_summary(mode):
   try:
-    import json
-
-    kst = pytz.timezone("Asia/Seoul")
-    now_kst = datetime.now(kst)
+    now_kst = datetime.now(KST)
     today_date = now_kst.date()
     today_str = today_date.strftime("%Y-%m-%d")
 
@@ -60,7 +59,7 @@ def get_tasks_summary(mode):
 
     else:
       title_label = "이번 주 할 일 (일요일 시작)"
-      weekday_num = now_kst.weekday()
+      weekday_num = now_kst.weekday()  # 월:0 ~ 일:6
       days_since_sunday = (weekday_num + 1) % 7
       start_of_week = today_date - timedelta(days=days_since_sunday)
       end_of_week = start_of_week + timedelta(days=6)
