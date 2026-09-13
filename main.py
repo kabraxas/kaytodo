@@ -58,8 +58,8 @@ def get_tasks_summary(mode):
       filtered_tasks = [task["content"] for task in tasks if "content" in task]
 
     else:
-      title_label = "이번 주 할 일 (일요일 시작)"
-      weekday_num = now_kst.weekday()  # 월:0 ~ 일:6
+      title_label = " 이번 주 할 일 (일요일 시작)"
+      weekday_num = now_kst.weekday()
       days_since_sunday = (weekday_num + 1) % 7
       start_of_week = today_date - timedelta(days=days_since_sunday)
       end_of_week = start_of_week + timedelta(days=6)
@@ -114,6 +114,9 @@ def get_tasks_summary(mode):
 def telegram_webhook():
   try:
     data = request.get_json(silent=True)
+    # 텔레그램에서 들어온 실제 데이터 전문을 Render 로그에 출력
+    print(f"Incoming Telegram Data: {data}")
+
     if not data:
       return "OK", 200
 
@@ -123,7 +126,6 @@ def telegram_webhook():
       text = message_obj.get("text", "").strip()
 
       if chat_id and text:
-        # 명령어에 붙은 @bot_name 제거 (예: /day@my_bot -> /day)
         command = text.split("@")[0]
 
         if command == "/day":
