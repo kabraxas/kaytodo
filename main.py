@@ -1,8 +1,8 @@
-import os
 from datetime import datetime, timedelta
+import os
+from flask import Flask, request
 import pytz
 import requests
-from flask import Flask, request
 
 app = Flask(__name__)
 
@@ -16,13 +16,16 @@ def send_telegram(chat_id, message):
   requests.post(url, json=payload)
 
 
-def fetch_todoist_tasks():
+def fetch_todoist_tasks_by_filter(filter_query):
+  """Todoist 필터 API를 사용하여 특정 조건(today 등)의 태스크를 가져옵니다."""
   url = "https://api.todoist.com/rest/v2/tasks"
   headers = {"Authorization": f"Bearer {TODOIST_TOKEN}"}
-  response = requests.get(url, headers=headers)
-  if response.status_code != 200:
-    return []
-  return response.json()
+  params = {"filter": filter_query}
+  response = requests.get(url, headers=headers, params=params)
+  if response.status_code == 200:
+    return response.status_code, response.json()
+  else:
+    return response.status_code, response.text
 
 
 def get_tasks_summary(mode):
@@ -31,29 +34,35 @@ def get_tasks_summary(mode):
   today_date = now_kst.date()
   today_str = today_date.strftime("%Y-%m-%d")
 
-  tasks = fetch_todoist_tasks()
-  filtered_tasks = []
-
   if mode == "day":
     title_label = "오늘의 할 일"
-    for task in tasks:
-      due = task.get("due")
-      if due:
-        due_date_str = due.get("date", "")[:10]
-        string_due = due.get("string", "").lower()
-        if (
-            due_date_str == today_str
-            or "매일" in string_due
-            or "every" in string_due
-        ):
-          filtered_tasks.append(task["content"])
+    # Todoist의 'today' 필터를 직접 사용 (반복 작업 및 오늘 할 일 자동 포함)
+    status_code, tasks = fetch_todoist_tasks_by_filter("today")
+
+    if status_code != 200:
+      return f"<b>[Todoist 연동 오류]</b>\nAPI 호출 실패 (상태 코드: {status_code})"
+
+    filtered_tasks = [task["content"] for task in tasks]
+
   else:
     title_label = "이번 주 할 일 (일요일 시작)"
-    weekday_num = now_kst.weekday()
+    # 일요일 시작 기준 주간 범위 계산 (일요일 ~ 토요일)
+    weekday_num = now_kst.weekday()  # 월:0 ~ 일:6
     days_since_sunday = (weekday_num + 1) % 7
     start_of_week = today_date - timedelta(days=days_since_sunday)
     end_of_week = start_of_week + timedelta(days=6)
 
+    start_str = start_of_week.strftime("%Y-%m-%d")
+    end_str = end_of_week.strftime("%Y-%m-%d")
+
+    # Todoist 날짜 범위 필터 사용 (예: 2026-09-13 | 2026-09-19)
+    filter_query = f"{start_str} | {end_str}"
+    status_code, tasks = fetch_todoist_tasks_by_filter(filter_query)
+
+    if status_code != 200:
+      return f"<b>[Todoist 연동 오류]</b>\nAPI 호출 실패 (상태 코드: {status_code})"
+
+    filtered_tasks = []
     for task in tasks:
       due = task.get("due")
       if due and "date" in due:
@@ -67,7 +76,7 @@ def get_tasks_summary(mode):
   if not filtered_tasks:
     return (
         f"<b>[Todoist {title_label} ({today_str})]</b>\n\n조회된 할 일이"
-        f" 없습니다.\n(총 태스크 수: {len(tasks)})"
+        f" 없습니다."
     )
   else:
     message = f"<b>[Todoist {title_label} ({today_str})]</b>\n\n"
@@ -90,8 +99,17 @@ def telegram_webhook():
       msg = get_tasks_summary("week")
       send_telegram(chat_id, msg)
     elif text == "/debug":
-      tasks = fetch_todoist_tasks()
-      msg = f"총 태스크 수: {len(tasks)}"
+      status_code, result = fetch_todoist_tasks_by_filter("today")
+      if status_code == 200:
+        msg = (
+            f"<b>[디버그 성공]</b>\nHTTP 상태 코드: {status_code}\n오늘 필터 태스크"
+            f" 수: {len(result)}"
+        )
+      else:
+        msg = (
+            f"<b>[디버그 실패]</b>\nHTTP 상태 코드: {status_code}\n에러 내용:"
+            f" {result}"
+        )
       send_telegram(chat_id, msg)
     elif text == "/start":
       send_telegram(chat_id, "Todoist 봇이 준비되었습니다.")
