@@ -123,19 +123,22 @@ def telegram_webhook():
       text = message_obj.get("text", "").strip()
 
       if chat_id and text:
-        if text == "/day":
+        # 명령어에 붙은 @bot_name 제거 (예: /day@my_bot -> /day)
+        command = text.split("@")[0]
+
+        if command == "/day":
           msg = get_tasks_summary("day")
           send_telegram(chat_id, msg)
-        elif text == "/week":
+        elif command == "/week":
           msg = get_tasks_summary("week")
           send_telegram(chat_id, msg)
-        elif text == "/debug":
+        elif command == "/debug":
           status_code, result = fetch_todoist_tasks_by_filter("today")
           msg = (
               f"<b>[디버그 결과]</b>\n상태 코드: {status_code}\n내용:\n{result}"
           )
           send_telegram(chat_id, msg)
-        elif text == "/start":
+        elif command == "/start":
           send_telegram(chat_id, "Todoist 봇이 준비되었습니다.")
   except Exception as e:
     print(f"Webhook processing error: {e}")
