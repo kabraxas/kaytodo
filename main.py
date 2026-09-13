@@ -26,7 +26,8 @@ def send_telegram(chat_id, message):
 
 
 def fetch_todoist_tasks_by_filter(filter_query):
-  url = "https://api.todoist.com/api/v1/tasks"
+  # Todoist 공식 REST API v2 엔드포인트로 수정
+  url = "https://api.todoist.com/rest/v2/tasks"
   headers = {"Authorization": f"Bearer {TODOIST_TOKEN}"}
   params = {"filter": filter_query} if filter_query else {}
   try:
@@ -54,7 +55,6 @@ def get_tasks_summary(mode):
 
       tasks = json.loads(text_resp)
       if not isinstance(tasks, list):
-        # Todoist가 리스트 대신 반환한 원본 내용을 그대로 노출하여 원인 파악
         return f"[Todoist 응답 오류]\n원본 데이터:\n{text_resp[:400]}"
 
       filtered_tasks = [task["content"] for task in tasks if "content" in task]
