@@ -26,8 +26,7 @@ def send_telegram(chat_id, message):
 
 
 def fetch_todoist_tasks_by_filter(filter_query):
-  # Todoist 공식 REST API v2 엔드포인트로 수정
-  url = "https://api.todoist.com/rest/v2/tasks"
+  url = "https://api.todoist.com/api/v1/tasks"
   headers = {"Authorization": f"Bearer {TODOIST_TOKEN}"}
   params = {"filter": filter_query} if filter_query else {}
   try:
@@ -53,8 +52,17 @@ def get_tasks_summary(mode):
             f" {status_code}\n내용:\n{text_resp[:500]}"
         )
 
-      tasks = json.loads(text_resp)
-      if not isinstance(tasks, list):
+      try:
+        data = json.loads(text_resp)
+      except Exception:
+        return f"[Todoist 응답 오류]\nJSON 파싱 실패:\n{text_resp[:400]}"
+
+      # 새로운 v1 API 구조에 맞게 "results" 키에서 리스트 추출
+      if isinstance(data, dict):
+        tasks = data.get("results", [])
+      elif isinstance(data, list):
+        tasks = data
+      else:
         return f"[Todoist 응답 오류]\n원본 데이터:\n{text_resp[:400]}"
 
       filtered_tasks = [task["content"] for task in tasks if "content" in task]
@@ -78,8 +86,16 @@ def get_tasks_summary(mode):
             f" {status_code}\n내용:\n{text_resp[:500]}"
         )
 
-      tasks = json.loads(text_resp)
-      if not isinstance(tasks, list):
+      try:
+        data = json.loads(text_resp)
+      except Exception:
+        return f"[Todoist 응답 오류]\nJSON 파싱 실패:\n{text_resp[:400]}"
+
+      if isinstance(data, dict):
+        tasks = data.get("results", [])
+      elif isinstance(data, list):
+        tasks = data
+      else:
         return f"[Todoist 응답 오류]\n원본 데이터:\n{text_resp[:400]}"
 
       filtered_tasks = []
