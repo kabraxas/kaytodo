@@ -25,12 +25,12 @@ def send_telegram(chat_id, message):
     print(f"Telegram send error: {e}")
 
 
-def fetch_todoist_tasks_by_filter(filter_query):
+def fetch_todoist_tasks():
+  # v1 엔드포인트는 filter 파라미터를 무시하므로 전체 목록을 가져와서 서버에서 직접 필터링합니다.
   url = "https://api.todoist.com/api/v1/tasks"
   headers = {"Authorization": f"Bearer {TODOIST_TOKEN}"}
-  params = {"filter": filter_query} if filter_query else {}
   try:
-    response = requests.get(url, headers=headers, params=params, timeout=10)
+    response = requests.get(url, headers=headers, timeout=10)
     return response.status_code, response.text
   except Exception as e:
     return 500, str(e)
@@ -42,37 +42,43 @@ def get_tasks_summary(mode):
     today_date = now_kst.date()
     today_str = today_date.strftime("%Y-%m-%d")
 
+    status_code, text_resp = fetch_todoist_tasks()
+    if status_code != 200:
+      return (
+          f"[Todoist 연동 오류]\n상태 코드: {status_code}\n내용:\n{text_resp[:500]}"
+      )
+
+    try:
+      data = json.loads(text_resp)
+    except Exception:
+      return f"[Todoist 응답 오류]\nJSON 파싱 실패:\n{text_resp[:400]}"
+
+    if isinstance(data, dict):
+      tasks = data.get("results", [])
+    elif isinstance(data, list):
+      tasks = data
+    else:
+      return f"[Todoist 응답 오류]\n원본 데이터:\n{text_resp[:400]}"
+
+    filtered_tasks = []
+
     if mode == "day":
-      title_label = "오늘의 할 일"
-      status_code, text_resp = fetch_todoist_tasks_by_filter("today")
-
-      if status_code != 200:
-        return (
-            f"[Todoist 연동 오류]\n상태 코드:"
-            f" {status_code}\n내용:\n{text_resp[:500]}"
-        )
-
-      try:
-        data = json.loads(text_resp)
-      except Exception:
-        return f"[Todoist 응답 오류]\nJSON 파싱 실패:\n{text_resp[:400]}"
-
-      if isinstance(data, dict):
-        tasks = data.get("results", [])
-      elif isinstance(data, list):
-        tasks = data
-      else:
-        return f"[Todoist 응답 오류]\n원본 데이터:\n{text_resp[:400]}"
-
-      # 마감일이 오늘 날짜와 정확히 일치하는 항목만 필터링
-      filtered_tasks = []
+      title_label = "오늘의 할 일 (기한 지난 항목 포함)"
       for task in tasks:
+        # 완료된 태스크 제외
+        if task.get("checked", False) or task.get("is_completed", False):
+          continue
+
         due = task.get("due")
         if due and "date" in due:
           try:
             task_date = datetime.strptime(due["date"][:10], "%Y-%m-%d").date()
-            if task_date == today_date:
-              filtered_tasks.append(task.get("content", ""))
+            # 오늘이거나 기한이 지난(Overdue) 할 일 포함
+            if task_date <= today_date:
+              prefix = (
+                  f"[{due['date'][:10]}] " if task_date < today_date else ""
+              )
+              filtered_tasks.append(f"{prefix}{task.get('content', '')}")
           except Exception:
             pass
 
@@ -83,32 +89,10 @@ def get_tasks_summary(mode):
       start_of_week = today_date - timedelta(days=days_since_sunday)
       end_of_week = start_of_week + timedelta(days=6)
 
-      start_str = start_of_week.strftime("%Y-%m-%d")
-      end_str = end_of_week.strftime("%Y-%m-%d")
-
-      filter_query = f"{start_str} | {end_str}"
-      status_code, text_resp = fetch_todoist_tasks_by_filter(filter_query)
-
-      if status_code != 200:
-        return (
-            f"[Todoist 연동 오류]\n상태 코드:"
-            f" {status_code}\n내용:\n{text_resp[:500]}"
-        )
-
-      try:
-        data = json.loads(text_resp)
-      except Exception:
-        return f"[Todoist 응답 오류]\nJSON 파싱 실패:\n{text_resp[:400]}"
-
-      if isinstance(data, dict):
-        tasks = data.get("results", [])
-      elif isinstance(data, list):
-        tasks = data
-      else:
-        return f"[Todoist 응답 오류]\n원본 데이터:\n{text_resp[:400]}"
-
-      filtered_tasks = []
       for task in tasks:
+        if task.get("checked", False) or task.get("is_completed", False):
+          continue
+
         due = task.get("due")
         if due and "date" in due:
           try:
@@ -153,7 +137,7 @@ def telegram_webhook():
           msg = get_tasks_summary("week")
           send_telegram(chat_id, msg)
         elif command == "/debug":
-          status_code, result = fetch_todoist_tasks_by_filter("today")
+          status_code, result = fetch_todoist_tasks()
           msg = (
               f"[디버그 결과]\n상태 코드: {status_code}\n내용:\n{result[:500]}"
           )
