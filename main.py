@@ -17,7 +17,8 @@ def send_telegram(chat_id, message):
 
 
 def fetch_todoist_tasks_by_filter(filter_query):
-  url = "https://api.todoist.com/rest/v2/tasks"
+  # 최신 API v1 엔드포인트로 수정
+  url = "https://api.todoist.com/api/v1/tasks"
   headers = {"Authorization": f"Bearer {TODOIST_TOKEN}"}
   params = {"filter": filter_query} if filter_query else {}
   response = requests.get(url, headers=headers, params=params)
