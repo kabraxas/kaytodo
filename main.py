@@ -43,14 +43,21 @@ def get_tasks_summary(mode):
       title_label = "오늘의 할 일"
       status_code, text_resp = fetch_todoist_tasks_by_filter("today")
 
-      if status_code != 200:
+      if status_코드가_아님 := (status_code != 200):
         return (
             f"<b>[Todoist 연동 오류]</b>\n상태 코드:"
             f" {status_code}\n내용:\n{text_resp}"
         )
 
       tasks = json.loads(text_resp)
-      filtered_tasks = [task["content"] for task in tasks]
+      # tasks가 리스트가 아닐 경우(에러 딕셔너리 등) 방어 처리
+      if not isinstance(tasks, list):
+        return (
+            f"<b>[Todoist 응답 오류]</b>\n예상치 못한 데이터 형태입니다:\n"
+            f"{text_resp}"
+        )
+
+      filtered_tasks = [task["content"] for task in tasks if "content" in task]
 
     else:
       title_label = "이번 주 할 일 (일요일 시작)"
@@ -72,6 +79,12 @@ def get_tasks_summary(mode):
         )
 
       tasks = json.loads(text_resp)
+      if not isinstance(tasks, list):
+        return (
+            f"<b>[Todoist 응답 오류]</b>\n예상치 못한 데이터 형태입니다:\n"
+            f"{text_resp}"
+        )
+
       filtered_tasks = []
       for task in tasks:
         due = task.get("due")
@@ -79,7 +92,9 @@ def get_tasks_summary(mode):
           try:
             task_date = datetime.strptime(due["date"][:10], "%Y-%m-%d").date()
             if start_of_week <= task_date <= end_of_week:
-              filtered_tasks.append(f"[{due['date'][:10]}] {task['content']}")
+              filtered_tasks.append(
+                  f"[{due['date'][:10]}] {task.get('content', '')}"
+              )
           except Exception:
             pass
 
@@ -100,12 +115,10 @@ def get_tasks_summary(mode):
 @app.route("/", methods=["POST"])
 def telegram_webhook():
   try:
-    # silent=True로 설정하여 잘못된 JSON 포맷 요청에도 서버가 죽지 않도록 방어
     data = request.get_json(silent=True)
     if not data:
       return "OK", 200
 
-    # message 혹은 edited_message 안전하게 추출
     message_obj = data.get("message") or data.get("edited_message")
     if message_obj:
       chat_id = message_obj.get("chat", {}).get("id")
