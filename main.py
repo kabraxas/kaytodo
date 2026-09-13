@@ -43,14 +43,13 @@ def get_tasks_summary(mode):
       title_label = "오늘의 할 일"
       status_code, text_resp = fetch_todoist_tasks_by_filter("today")
 
-      if status_코드가_아님 := (status_code != 200):
+      if status_code != 200:
         return (
             f"<b>[Todoist 연동 오류]</b>\n상태 코드:"
             f" {status_code}\n내용:\n{text_resp}"
         )
 
       tasks = json.loads(text_resp)
-      # tasks가 리스트가 아닐 경우(에러 딕셔너리 등) 방어 처리
       if not isinstance(tasks, list):
         return (
             f"<b>[Todoist 응답 오류]</b>\n예상치 못한 데이터 형태입니다:\n"
@@ -61,7 +60,7 @@ def get_tasks_summary(mode):
 
     else:
       title_label = "이번 주 할 일 (일요일 시작)"
-      weekday_num = now_kst.weekday()  # 월:0 ~ 일:6
+      weekday_num = now_kst.weekday()
       days_since_sunday = (weekday_num + 1) % 7
       start_of_week = today_date - timedelta(days=days_since_sunday)
       end_of_week = start_of_week + timedelta(days=6)
